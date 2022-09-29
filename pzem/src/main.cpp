@@ -3,15 +3,14 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "credentials.h"
+#include <iostream>
+#include <string>
 
 const char *device = "PZEM01";
-const char *topic = "PZEM/";
-int interval = 2;
+const char *inTopic = "PZEMIN/+/+";
+const char *outTopic = "PZEMOUT/data";
+int interval = 5;
 
-/* creentials.h
-const char *wifiPwd = "...";
-const char *mqttPwd = "...";
-*/
 const char *ssid = "Reminat";
 const char *mqttServer = "mosquitto.reminat.com";
 const char *mqttUser = "remi";
@@ -54,7 +53,7 @@ void connectMqtt()
     if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPwd))
     {
       Serial.println("MQTT connected");
-      mqttClient.subscribe(topic);
+      mqttClient.subscribe(inTopic);
     }
     else
     {
@@ -66,13 +65,80 @@ void connectMqtt()
     }
   }
 }
+String format(
+    float voltage,
+    float current,
+    float power,
+    float energy,
+    float frequency,
+    float pf)
+{
+  String message = "{";
+  if (!isnan(voltage))
+  {
+    message.concat("\"voltage\": ");
+    message.concat(voltage);
+    message.concat(",");
+  }
+  if (!isnan(current))
+  {
+    message.concat("\"current\": ");
+    message.concat(current);
+    message.concat(",");
+  }
+  if (!isnan(power))
+  {
+    message.concat("\"power\": ");
+    message.concat(power);
+    message.concat(",");
+  }
+  if (!isnan(energy))
+  {
+    message.concat("\"energy\": ");
+    message.concat(energy);
+    message.concat(",");
+  }
+  if (!isnan(frequency))
+  {
+    message.concat("\"frequency\": ");
+    message.concat(frequency);
+    message.concat(",");
+  }
+  if (!isnan(pf))
+  {
+    message.concat("\"pf\": ");
+    message.concat(pf);
+    message.concat(",");
+  }
+  message.concat("}");
+  return message;
+}
+void handleMqttMessage(char *topic, byte *payload, unsigned int length)
+{
+  Serial.println();
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  String key = String(topic).substring(strlen(inTopic) + strlen(device) - 2, strlen(topic));
+  Serial.println(key);
 
+  if (key == "interval")
+  {
+    interval = atoi((char *)payload);
+  }
+  else if (key == "reset")
+  {
+    pzem.resetEnergy();
+  }
+  Serial.println();
+};
 void setup()
 {
   Serial.begin(115200);
   setup_wifi();
   randomSeed(micros());
   mqttClient.setServer(mqttServer, 1883);
+  mqttClient.setCallback(handleMqttMessage);
 }
 
 void loop()
@@ -93,51 +159,24 @@ void loop()
   float frequency = pzem.frequency();
   float pf = pzem.pf();
 
-  if (isnan(voltage))
-  {
-    Serial.println("Error reading voltage");
-  }
-  else if (isnan(current))
-  {
-    Serial.println("Error reading current");
-  }
-  else if (isnan(power))
-  {
-    Serial.println("Error reading power");
-  }
-  else if (isnan(energy))
-  {
-    Serial.println("Error reading energy");
-  }
-  else if (isnan(frequency))
-  {
-    Serial.println("Error reading frequency");
-  }
-  else if (isnan(pf))
-  {
-    Serial.println("Error reading power factor");
-  }
-  else
-  {
-
-    Serial.print("Voltage: ");
-    Serial.print(voltage);
-    Serial.println("V");
-    Serial.print("Current: ");
-    Serial.print(current);
-    Serial.println("A");
-    Serial.print("Power: ");
-    Serial.print(power);
-    Serial.println("W");
-    Serial.print("Energy: ");
-    Serial.print(energy, 3);
-    Serial.println("kWh");
-    Serial.print("Frequency: ");
-    Serial.print(frequency, 1);
-    Serial.println("Hz");
-    Serial.print("PF: ");
-    Serial.println(pf);
-  }
+  Serial.print("Voltage: ");
+  Serial.print(voltage);
+  Serial.println("V");
+  Serial.print("Current: ");
+  Serial.print(current);
+  Serial.println("A");
+  Serial.print("Power: ");
+  Serial.print(power);
+  Serial.println("W");
+  Serial.print("Energy: ");
+  Serial.print(energy, 3);
+  Serial.println("kWh");
+  Serial.print("Frequency: ");
+  Serial.print(frequency, 1);
+  Serial.println("Hz");
+  Serial.print("PF: ");
+  Serial.println(pf);
+  mqttClient.publish(outTopic, format(voltage, current, power, energy, frequency, pf).c_str());
 
   Serial.println();
   delay(interval * 1000);

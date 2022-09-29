@@ -5,7 +5,10 @@
 #include "credentials.h"
 #include <iostream>
 #include <string>
-
+/* credentials.h
+const char *wifiPwd = "...";
+const char *mqttPwd = "...";
+*/
 const char *device = "PZEM01";
 const char *inTopic = "PZEMIN/+/+";
 const char *outTopic = "PZEMOUT/data";

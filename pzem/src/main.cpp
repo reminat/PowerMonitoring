@@ -1,15 +1,17 @@
+#include "ArduinoOTA.h"
+#include "credentials.h"
+#include <ESP8266WiFi.h>
+#include <iostream>
+#include <PubSubClient.h>
 #include <PZEM004Tv30.h>
 #include <SoftwareSerial.h>
-#include <ESP8266WiFi.h>
-#include <PubSubClient.h>
-#include "credentials.h"
-#include <iostream>
 #include <string>
+
 /* credentials.h
 const char *wifiPwd = "...";
 const char *mqttPwd = "...";
 */
-const char *device = "PZEM01";
+const char *device = "PZEM99";
 const char *inTopic = "PZEMIN/+/+";
 const char *outTopic = "PZEMOUT/data";
 int interval = 5;
@@ -111,7 +113,6 @@ String format(
   {
     message.concat("\"pf\": ");
     message.concat(pf);
-    message.concat(",");
   }
   message.concat("}");
   return message;
@@ -139,6 +140,9 @@ void setup()
 {
   Serial.begin(115200);
   setup_wifi();
+  ArduinoOTA.begin();
+  ArduinoOTA.setHostname(device);
+  ArduinoOTA.setPassword(mqttPwd);
   randomSeed(micros());
   mqttClient.setServer(mqttServer, 1883);
   mqttClient.setCallback(handleMqttMessage);
@@ -151,6 +155,7 @@ void loop()
     connectMqtt();
   }
   mqttClient.loop();
+  ArduinoOTA.handle();
 
   Serial.print("Custom Address:");
   Serial.println(pzem.readAddress(), HEX);

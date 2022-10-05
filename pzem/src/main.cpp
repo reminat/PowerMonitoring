@@ -1,5 +1,4 @@
 #include "ArduinoOTA.h"
-#include "credentials.h"
 #include <ESP8266WiFi.h>
 #include <iostream>
 #include <PubSubClient.h>
@@ -7,18 +6,9 @@
 #include <SoftwareSerial.h>
 #include <string>
 
-/* credentials.h
-const char *wifiPwd = "...";
-const char *mqttPwd = "...";
-*/
-const char *device = "PZEM99";
 const char *inTopic = "PZEMIN/+/+";
 const char *outTopic = "PZEMOUT/data";
-int interval = 5;
-
-const char *ssid = "Reminat";
-const char *mqttServer = "mosquitto.reminat.com";
-const char *mqttUser = "remi";
+int interval = INTERVAL;
 
 SoftwareSerial pzemSWSerial(PZEM_RX_PIN, PZEM_TX_PIN);
 PZEM004Tv30 pzem(pzemSWSerial);
@@ -31,9 +21,9 @@ void setup_wifi()
   delay(10);
   Serial.println();
   Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Serial.println(WIFISSID);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, wifiPwd);
+  WiFi.begin(WIFISSID, WIFIPASSWORD);
 
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -55,7 +45,7 @@ void connectMqtt()
     Serial.print("Attempting MQTT connection ...");
     String clientId = "ESP8266Client-";
     clientId += String(random(0xffff), HEX);
-    if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPwd))
+    if (mqttClient.connect(clientId.c_str(), MQTTUSER, MQTTPASSWORD))
     {
       Serial.println("MQTT connected");
       mqttClient.subscribe(inTopic);
@@ -123,7 +113,7 @@ void handleMqttMessage(char *topic, byte *payload, unsigned int length)
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
-  String key = String(topic).substring(strlen(inTopic) + strlen(device) - 2, strlen(topic));
+  String key = String(topic).substring(strlen(inTopic) + strlen(DEVICENAME) - 2, strlen(topic));
   Serial.println(key);
 
   if (key == "interval")
@@ -141,10 +131,10 @@ void setup()
   Serial.begin(115200);
   setup_wifi();
   ArduinoOTA.begin();
-  ArduinoOTA.setHostname(device);
-  ArduinoOTA.setPassword(mqttPwd);
+  ArduinoOTA.setHostname(DEVICENAME);
+  ArduinoOTA.setPassword(MQTTPASSWORD);
   randomSeed(micros());
-  mqttClient.setServer(mqttServer, 1883);
+  mqttClient.setServer(MQTTSERVER, 1883);
   mqttClient.setCallback(handleMqttMessage);
 }
 

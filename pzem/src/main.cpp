@@ -5,14 +5,15 @@
 #include <PZEM004Tv30.h>
 #include <SoftwareSerial.h>
 #include <string>
+#include <map>
 
 const char *inTopic = "PZEMIN/+/+";
-const char *outTopic = "PZEMOUT/data/PZEM99";
+const char *outTopic = "PZEMOUT/" DEVICENAME;
 int interval = INTERVAL;
 
 SoftwareSerial pzemSWSerial(PZEM_RX_PIN, PZEM_TX_PIN);
-PZEM004Tv30 pzem1(pzemSWSerial, 0x01);
-PZEM004Tv30 pzem2(pzemSWSerial, 0x02);
+int addr[] = ADDRESSES;
+std::map<uint8_t, PZEM004Tv30> pzem;
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
@@ -91,7 +92,7 @@ String format(
   if (!isnan(energy))
   {
     message.concat("\"energy\": ");
-    message.concat(energy);
+    message.concat(energy * 1000);
     message.concat(",");
   }
   if (!isnan(frequency))
@@ -123,7 +124,8 @@ void handleMqttMessage(char *topic, byte *payload, unsigned int length)
   }
   else if (key == "reset")
   {
-    pzem1.resetEnergy();
+
+    pzem.find(atoi((char *)payload))->second.resetEnergy();
   }
   Serial.println();
 };
@@ -137,83 +139,65 @@ void setup()
   randomSeed(micros());
   mqttClient.setServer(MQTTSERVER, 1883);
   mqttClient.setCallback(handleMqttMessage);
+
+  for (size_t i = 0; i < 2; i++)
+  {
+    uint8_t ad = addr[i];
+    pzem.insert({ad, PZEM004Tv30(pzemSWSerial, ad)});
+  }
 }
 
 void loop()
 {
+  // Serial.println();
   if (!mqttClient.connected())
   {
     connectMqtt();
   }
   mqttClient.loop();
   ArduinoOTA.handle();
-  Serial.println("==========");
 
-  Serial.print("Custom Address:");
+  for (auto itr = pzem.begin(); itr != pzem.end(); ++itr)
+  {
 
-  Serial.println(pzem1.readAddress(), HEX);
+    delay(100);
+    Serial.println("==========");
 
-  float voltage = pzem1.voltage();
-  float current = pzem1.current();
-  float power = pzem1.power();
-  float energy = pzem1.energy();
-  float frequency = pzem1.frequency();
-  float pf = pzem1.pf();
+    Serial.print("Custom Address:");
 
-  Serial.print("Voltage: ");
-  Serial.print(voltage);
-  Serial.println("V");
-  Serial.print("Current: ");
-  Serial.print(current);
-  Serial.println("A");
-  Serial.print("Power: ");
-  Serial.print(power);
-  Serial.println("W");
-  Serial.print("Energy: ");
-  Serial.print(energy, 3);
-  Serial.println("kWh");
-  Serial.print("Frequency: ");
-  Serial.print(frequency, 1);
-  Serial.println("Hz");
-  Serial.print("PF: ");
-  Serial.println(pf);
-  mqttClient.publish("test/1", format(voltage, current, power, energy, frequency, pf).c_str());
+    Serial.println(itr->second.readAddress(), HEX);
 
-  Serial.println();
-  // delay(interval * 1000);
+    float voltage = itr->second.voltage();
+    float current = itr->second.current();
+    float power = itr->second.power();
+    float energy = itr->second.energy();
+    float frequency = itr->second.frequency();
+    float pf = itr->second.pf();
 
-  Serial.print("Custom Address:");
+    Serial.print("Voltage: ");
+    Serial.print(voltage);
+    Serial.println("V");
+    Serial.print("Current: ");
+    Serial.print(current);
+    Serial.println("A");
+    Serial.print("Power: ");
+    Serial.print(power);
+    Serial.println("W");
+    Serial.print("Energy: ");
+    Serial.print(energy, 3);
+    Serial.println("kWh");
+    Serial.print("Frequency: ");
+    Serial.print(frequency, 1);
+    Serial.println("Hz");
+    Serial.print("PF: ");
+    Serial.println(pf);
+    String topic = outTopic;
+    topic.concat("/");
+    topic.concat(itr->first);
+    mqttClient.publish(topic.c_str(), format(voltage, current, power, energy, frequency, pf).c_str());
 
-  Serial.println(pzem2.readAddress(), HEX);
+    Serial.println();
+  }
 
-  float voltage2 = pzem2.voltage();
-  float current2 = pzem2.current();
-  float power2 = pzem2.power();
-  float energy2 = pzem2.energy();
-  float frequency2 = pzem2.frequency();
-  float pf2 = pzem2.pf();
-  Serial.println();
-  Serial.println();
-
-  Serial.print("Voltage 2: ");
-  Serial.print(voltage2);
-  Serial.println("V");
-  Serial.print("Current 2: ");
-  Serial.print(current2);
-  Serial.println("A");
-  Serial.print("Power 2: ");
-  Serial.print(power2);
-  Serial.println("W");
-  Serial.print("Energy 2: ");
-  Serial.print(energy2, 3);
-  Serial.println("kWh");
-  Serial.print("Frequency 2: ");
-  Serial.print(frequency2, 1);
-  Serial.println("Hz");
-  Serial.print("PF 2: ");
-  Serial.println(pf2);
-  mqttClient.publish("test/2", format(voltage2, current2, power2, energy2, frequency2, pf2).c_str());
-
-  Serial.println();
   delay(interval * 1000);
 }

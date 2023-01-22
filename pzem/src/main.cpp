@@ -12,7 +12,8 @@ const char *outTopic = "PZEMOUT/" DEVICENAME;
 int interval = INTERVAL;
 
 SoftwareSerial pzemSWSerial(PZEM_RX_PIN, PZEM_TX_PIN);
-int addr[] = ADDRESSES;
+uint8_t addr[] = ADDRESSES;
+int addrLength = sizeof(addr) / sizeof(addr[0]);
 std::map<uint8_t, PZEM004Tv30> pzem;
 
 WiFiClient espClient;
@@ -68,9 +69,12 @@ String format(
     float power,
     float energy,
     float frequency,
-    float pf)
+    float pf,
+    uint8_t addr)
 {
-  String message = "{";
+  String message = "{addr: ";
+  message.concat(addr);
+  message.concat(",");
   if (!isnan(voltage))
   {
     message.concat("\"voltage\": ");
@@ -140,8 +144,9 @@ void setup()
   mqttClient.setServer(MQTTSERVER, 1883);
   mqttClient.setCallback(handleMqttMessage);
 
-  for (size_t i = 0; i < 2; i++)
+  for (size_t i = 0; i < 6; i++)
   {
+    mqttClient.publish("PZEM99/Serial", "ok");
     uint8_t ad = addr[i];
     pzem.insert({ad, PZEM004Tv30(pzemSWSerial, ad)});
   }
@@ -165,7 +170,8 @@ void loop()
 
     Serial.print("Custom Address:");
 
-    Serial.println(itr->second.readAddress(), HEX);
+    uint8_t currentAddr = itr->second.readAddress();
+    Serial.println(currentAddr, HEX);
 
     float voltage = itr->second.voltage();
     float current = itr->second.current();
@@ -194,7 +200,7 @@ void loop()
     String topic = outTopic;
     topic.concat("/");
     topic.concat(itr->first);
-    mqttClient.publish(topic.c_str(), format(voltage, current, power, energy, frequency, pf).c_str());
+    mqttClient.publish(topic.c_str(), format(voltage, current, power, energy, frequency, pf, currentAddr).c_str());
 
     Serial.println();
   }
